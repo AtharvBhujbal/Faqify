@@ -1,13 +1,14 @@
 from flask import Blueprint, render_template, jsonify, request
 faq_bp = Blueprint('faq', __name__)
 import requests
-import threading
 from googletrans import LANGUAGES
 
 from .database import db
 from .message import IS_SUCCESS, IS_ERROR, STATUS
 from .log import logger
 from .translate import translate_faq, translate_all_faqs
+from .redis import cache
+from .multithreading import start_translating_faq_and_caching
 
 @faq_bp.route('/')
 def hello():
@@ -39,8 +40,7 @@ def create_faq():
         data = request.get_json()
         faq_id = db.create_faq(data["question"], data["answer"])
 
-        thread = threading.Thread(target=translate_faq, args=(faq_id,lang))
-        thread.start()
+        start_translating_faq_and_caching(faq_id, lang)
 
         resp = {"faq_id": faq_id}
         status = STATUS["OK"]
@@ -78,18 +78,22 @@ def get_faq(faq_id):
 
 
 @faq_bp.route('/faqs/', methods=['GET'])
-def faq(lang=None):
+def faq():
     try:
-        lang = request.args.get("lang")
-        if lang and lang not in LANGUAGES:
+        lang = request.args.get("lang",'en')
+        if (lang or lang=='') and lang not in LANGUAGES:
             raise ValueError("Invalid Language")
         
-        if db.get_translated_lang()==lang:
-            faqs = db.get_all_faqs(lang)
-        elif lang:
+        if cache.exists(lang):
+            faqs = cache.get(lang)
+        elif lang and lang != 'en':
             translate_all_faqs(lang)
-    
-        faqs = db.get_all_faqs(lang)
+            faqs = db.get_all_faqs(lang)
+            cache.set(key=lang,value=faqs)
+        else:
+            faqs = db.get_all_faqs()
+            cache.set(key=lang,value=faqs)
+        
         resp = {"faqs": faqs}
         status = STATUS["OK"]
 
@@ -121,6 +125,10 @@ def dummy():
                 {
                     "question": "What technologies are used in FAQify?",
                     "answer": "FAQify is built using Python, Flask, and PostgreSQL."
+                },
+                {
+                    "question": "Can I contribute to FAQify?",
+                    "answer": "Yes! FAQify is an open-source project, and we welcome contributions from the community."
                 }
             ]
         head = {

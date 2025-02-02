@@ -21,3 +21,16 @@ STATUS = {
     "NOT_FOUND": 404,
     "OK": 200,
 }
+
+IND_LANGUAGES = {
+    "English":"en",
+    "Hindi":"hi",
+    "Kannada":"kn",
+    "Tamil":"ta",
+    "Telugu":"te",
+    "Bengali":"bn",
+    "Malayalam":"ml",
+    "Gujarati":"gu",
+    "Marathi":"mr",
+    "Punjabi":"pa",
+}

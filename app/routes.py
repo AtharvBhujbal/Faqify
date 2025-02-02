@@ -20,37 +20,42 @@ def init_db():
         db.initialize_database()
         resp = IS_SUCCESS["DATABASE_INITIALIZED"]
         status = STATUS["OK"]
+
     except Exception as e:
+        logger.error(f"Database Error: {e}")
         resp = IS_ERROR["ERR_DATABASE_INITIALIZATION"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
-        logger.error(f"Database Error: {e}")
+    
     return jsonify(resp), status
 
 
 @faq_bp.route('/create-faq',methods=['POST'])
-def create_faq(lang=None):
+def create_faq():
     try:
-        lang = request.args.get("lang")
+        lang = request.args.get("lang", "en")
         if lang and lang not in LANGUAGES:
             raise ValueError("Invalid Language")
         
         data = request.get_json()
         faq_id = db.create_faq(data["question"], data["answer"])
+
+        thread = threading.Thread(target=translate_faq, args=(faq_id,lang))
+        thread.start()
+
         resp = {"faq_id": faq_id}
         status = STATUS["OK"]
+
     except ValueError as e:
         resp = IS_ERROR["ERR_FAQ_INVALID_LANG"]
         status = STATUS["BAD_REQUEST"]
         logger.error(f"Invalid Language: {e}")
+    
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_CREATE"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
         logger.error(f"Database Error: {e}")
-    finally:
-        lang = 'en' if not lang else lang
-        thread = threading.Thread(target=translate_faq, args=(faq_id,lang))
-        thread.start()
-        return jsonify(resp), status
+    
+    return jsonify(resp), status
 
 
 @faq_bp.route('/faq/<int:faq_id>',methods=['GET'])
@@ -63,10 +68,12 @@ def get_faq(faq_id):
         else:
             resp = IS_ERROR["ERR_FAQ_NOT_FOUND"]
             status = STATUS["NOT_FOUND"]
+    
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_FETCH"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
         logger.error(f"Database Error: {e}")
+    
     return jsonify(resp), status
 
 
@@ -76,21 +83,26 @@ def faq(lang=None):
         lang = request.args.get("lang")
         if lang and lang not in LANGUAGES:
             raise ValueError("Invalid Language")
+        
         if db.get_translated_lang()==lang:
             faqs = db.get_all_faqs(lang)
         elif lang:
             translate_all_faqs(lang)
+    
         faqs = db.get_all_faqs(lang)
         resp = {"faqs": faqs}
         status = STATUS["OK"]
+
     except ValueError as e:
         resp = IS_ERROR["ERR_FAQ_INVALID_LANG"]
         status = STATUS["BAD_REQUEST"]
         logger.error(f"Invalid Language: {e}")
+    
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_FETCH"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
         logger.error(f"Database Error: {e}")
+    
     return jsonify(resp), status
 
 
@@ -121,9 +133,11 @@ def dummy():
                 raise
         resp = IS_SUCCESS["FAQ_CREATED"]
         status = STATUS["OK"]
+    
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_CREATE"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
         logger.error(f"Database Error: {e}")
+    
     return jsonify(resp), status
 

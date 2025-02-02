@@ -145,7 +145,7 @@ def dummy():
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_CREATE"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
-        logger.error(f"Database Error: {e}")
+        logger.error(f"Error creating dummy data: {e}")
     
     return jsonify(resp), status
 

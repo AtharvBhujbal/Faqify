@@ -11,13 +11,12 @@ from .database import db
 
 
 def start_translating_faq_and_caching(faq_id, lang):
-    t1 = threading.Thread(target=translate_faq, args=(faq_id, lang))
+    t1 = threading.Thread(target=process_faq_and_cache, args=(faq_id, lang))
     t1.start()
-    t1.join()
 
-    t2 = threading.Thread(target=cache_all_faqs)
-    t2.start()
-    
+def process_faq_and_cache(faq_id, lang):
+    translate_faq(faq_id, lang)
+    cache_all_faqs()
 
 def cache_all_faqs():
     if not cache.exists("preprocessed_faqs"):

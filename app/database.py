@@ -3,7 +3,7 @@ import psycopg2
 from dotenv import load_dotenv
 load_dotenv()
 import os
-from .log import logger
+from app.log import logger
 
 class database:
     def __init__(self):
@@ -84,6 +84,51 @@ class database:
             return cur.fetchall()
         except Exception as e:
             logger.error(f"Database Error while Fetching FAQs: {e}")
+            raise 
+        finally:
+            cur.close()
+
+    def get_all_not_translated_faqs(self):
+        cur = self.db.cursor()
+        try:
+            query = """
+                SELECT id, question FROM faq WHERE question_hi IS NULL OR question_bn IS NULL;
+            """
+            cur.execute(query)
+            return cur.fetchall()
+        except Exception as e:
+            logger.error(f"Database Error while Fetching Not Translated FAQs: {e}")
+    
+    def update_faq(self, faq_id, question, answer, question_hi=None, question_bn=None):
+        cur = self.db.cursor()
+        try:
+            query = """
+                UPDATE faq
+                SET question = %s, question_hi = %s, question_bn = %s, answer = %s
+                WHERE id = %s;
+            """
+            cur.execute(query, (question, question_hi, question_bn, answer, faq_id))
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Database Error while Updating FAQ: {e}")
+            raise 
+        finally:
+            cur.close()
+
+    def update_translation(self, faq_id, question_hi, question_bn):
+        cur = self.db.cursor()
+        try:
+            query = """
+                UPDATE faq
+                SET question_hi = %s, question_bn = %s
+                WHERE id = %s;
+            """
+            cur.execute(query, (question_hi, question_bn, faq_id))
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Database Error while Updating Translation: {e}")
             raise 
         finally:
             cur.close()

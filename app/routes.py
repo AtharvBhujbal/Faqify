@@ -1,9 +1,12 @@
 from flask import Blueprint, render_template, jsonify, request
 faq_bp = Blueprint('faq', __name__)
+import requests
+import threading
 
 from .database import db
 from .message import IS_SUCCESS, IS_ERROR, STATUS
 from .log import logger
+from .translate import translate_faq
 
 @faq_bp.route('/')
 def hello():
@@ -25,16 +28,19 @@ def init_db():
 
 @faq_bp.route('/create-faq',methods=['POST'])
 def create_faq():
-    data = request.json()
     try:
-        faq_id = db.create_faq(data["question"], data["answer"], data.get("question_hi"), data.get("question_bn"))
+        data = request.get_json()
+        faq_id = db.create_faq(data["question"], data["answer"])
         resp = {"faq_id": faq_id}
         status = STATUS["OK"]
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_CREATE"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
         logger.error(f"Database Error: {e}")
-    return jsonify(resp), status
+    finally:
+        thread = threading.Thread(target=translate_faq, args=(faq_id,))
+        thread.start()
+        return jsonify(resp), status
 
 
 @faq_bp.route('/faq/<int:faq_id>',methods=['GET'])
@@ -77,9 +83,28 @@ def faq(lang=None):
 @faq_bp.route('/dummy-data',methods=['POST'])
 def dummy():
     try:
-        db.create_faq("What is FAQify?","FAQify is a simple FAQ application that allows you to view and manage FAQs.")
-        db.create_faq("How do I use FAQify?","You can view the list of FAQs by visiting the /faq endpoint. You can also add new FAQs by sending a POST request to the /faq endpoint with the question and answer in the request body.")
-        db.create_faq("What technologies are used in FAQify?","FAQify is built using Python, Flask, and PostgreSQL.")
+        faq_list = [
+                {
+                    "question": "What is FAQify?",
+                    "answer": "FAQify is a simple FAQ application that allows you to view and manage FAQs."
+                },
+                {
+                    "question": "How do I use FAQify?",
+                    "answer": "You can view the list of FAQs by visiting the /faq endpoint. You can also add new FAQs by sending a POST request to the /faq endpoint with the question and answer in the request body."
+                },
+                {
+                    "question": "What technologies are used in FAQify?",
+                    "answer": "FAQify is built using Python, Flask, and PostgreSQL."
+                }
+            ]
+        head = {
+            "Content-Type": "application/json"
+        }
+        for faq in faq_list:
+            redirect_url = request.url.replace("dummy-data", "create-faq")
+            resp = requests.post(redirect_url,headers=head, json=faq)
+            if resp.status_code != 200:
+                raise
         resp = IS_SUCCESS["FAQ_CREATED"]
         status = STATUS["OK"]
     except Exception as e:

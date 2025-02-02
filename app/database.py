@@ -23,8 +23,8 @@ class database:
                 CREATE TABLE IF NOT EXISTS faq (
                     id SERIAL PRIMARY KEY,
                     question TEXT NOT NULL,
-                    question_hi TEXT,
-                    question_bn TEXT,
+                    question_trans TEXT,
+                    language TEXT,
                     answer TEXT NOT NULL
                 );
             """
@@ -37,15 +37,15 @@ class database:
         finally:
             cur.close()
 
-    def create_faq(self, question, answer, question_hi=None, question_bn=None):
+    def create_faq(self, question, answer, question_trans=None, language=None):
         cur = self.db.cursor()
         try:
             query = """
-                INSERT INTO faq (question, question_hi, question_bn, answer)
+                INSERT INTO faq (question, question_trans, language, answer)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id;
             """
-            cur.execute(query, (question, question_hi, question_bn, answer))
+            cur.execute(query, (question, question_trans, language, answer))
             self.db.commit()
             return cur.fetchone()[0]
         except Exception as e:
@@ -74,7 +74,7 @@ class database:
         try:
             if lang:
                 query = f"""
-                    SELECT id, question_{lang}, answer FROM faq WHERE question_{lang} IS NOT NULL;
+                    SELECT id, question_trans, answer FROM faq WHERE language = '{lang}';
                 """
             else:
                 query = """
@@ -92,22 +92,22 @@ class database:
         cur = self.db.cursor()
         try:
             query = """
-                SELECT id, question FROM faq WHERE question_hi IS NULL OR question_bn IS NULL;
+                SELECT id, question FROM faq WHERE question_trans IS NULL;
             """
             cur.execute(query)
             return cur.fetchall()
         except Exception as e:
             logger.error(f"Database Error while Fetching Not Translated FAQs: {e}")
     
-    def update_faq(self, faq_id, question, answer, question_hi=None, question_bn=None):
+    def update_faq(self, faq_id, question, answer, question_trans=None, language=None):
         cur = self.db.cursor()
         try:
             query = """
                 UPDATE faq
-                SET question = %s, question_hi = %s, question_bn = %s, answer = %s
+                SET question = %s, question_trans = %s, language = %s, answer = %s
                 WHERE id = %s;
             """
-            cur.execute(query, (question, question_hi, question_bn, answer, faq_id))
+            cur.execute(query, (question, question_trans, language, answer, faq_id))
             self.db.commit()
         except Exception as e:
             self.db.rollback()
@@ -116,15 +116,15 @@ class database:
         finally:
             cur.close()
 
-    def update_translation(self, faq_id, question_hi, question_bn):
+    def update_translation(self, faq_id, question_trans, language):
         cur = self.db.cursor()
         try:
             query = """
                 UPDATE faq
-                SET question_hi = %s, question_bn = %s
+                SET question_trans = %s, language = %s
                 WHERE id = %s;
             """
-            cur.execute(query, (question_hi, question_bn, faq_id))
+            cur.execute(query, (question_trans, language, faq_id))
             self.db.commit()
         except Exception as e:
             self.db.rollback()
@@ -133,6 +133,19 @@ class database:
         finally:
             cur.close()
 
+    def get_translated_lang(self):
+        cur = self.db.cursor()
+        try:
+            query = """
+                SELECT language FROM faq WHERE id = 1;
+            """
+            cur.execute(query)
+            return cur.fetchone()[0]
+        except Exception as e:
+            logger.error(f"Database Error while Fetching Translated Language: {e}")
+            raise
+        finally:
+            cur.close()
 
 
 db = database()

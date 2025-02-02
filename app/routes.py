@@ -2,11 +2,12 @@ from flask import Blueprint, render_template, jsonify, request
 faq_bp = Blueprint('faq', __name__)
 import requests
 import threading
+from googletrans import LANGUAGES
 
 from .database import db
 from .message import IS_SUCCESS, IS_ERROR, STATUS
 from .log import logger
-from .translate import translate_faq
+from .translate import translate_faq, translate_all_faqs
 
 @faq_bp.route('/')
 def hello():
@@ -27,18 +28,27 @@ def init_db():
 
 
 @faq_bp.route('/create-faq',methods=['POST'])
-def create_faq():
+def create_faq(lang=None):
     try:
+        lang = request.args.get("lang")
+        if lang and lang not in LANGUAGES:
+            raise ValueError("Invalid Language")
+        
         data = request.get_json()
         faq_id = db.create_faq(data["question"], data["answer"])
         resp = {"faq_id": faq_id}
         status = STATUS["OK"]
+    except ValueError as e:
+        resp = IS_ERROR["ERR_FAQ_INVALID_LANG"]
+        status = STATUS["BAD_REQUEST"]
+        logger.error(f"Invalid Language: {e}")
     except Exception as e:
         resp = IS_ERROR["ERR_FAQ_CREATE"]
         status = STATUS["INTERNAL_SERVER_ERROR"]
         logger.error(f"Database Error: {e}")
     finally:
-        thread = threading.Thread(target=translate_faq, args=(faq_id,))
+        lang = 'en' if not lang else lang
+        thread = threading.Thread(target=translate_faq, args=(faq_id,lang))
         thread.start()
         return jsonify(resp), status
 
@@ -64,8 +74,12 @@ def get_faq(faq_id):
 def faq(lang=None):
     try:
         lang = request.args.get("lang")
-        if lang and lang not in ["hi", "bn"]:
+        if lang and lang not in LANGUAGES:
             raise ValueError("Invalid Language")
+        if db.get_translated_lang()==lang:
+            faqs = db.get_all_faqs(lang)
+        elif lang:
+            translate_all_faqs(lang)
         faqs = db.get_all_faqs(lang)
         resp = {"faqs": faqs}
         status = STATUS["OK"]

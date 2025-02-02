@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:13
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: faqdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/faqdb
+    ports:
+      - "5000:5000"
+    command: >
+      sh -c "python setup_db.py && python run.py"
+
+  frontend:
+    build: ./frontend
+    restart: always
+    ports:
+      - "3000:5000"
+
+volumes:
+  pgdata:
